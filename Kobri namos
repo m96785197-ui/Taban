@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ANU Medical Exam Engine — CVS Module</title>
+    <style>
+        :root {
+            --navy: #002147;
+            --slate: #708090;
+            --emerald: #50C878;
+            --light: #f4f7f9;
+            --white: #ffffff;
+        }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--light); color: var(--navy); margin: 0; line-height: 1.6; }
+        #app { max-width: 800px; margin: 0 auto; background: var(--white); min-height: 100vh; padding: 20px; box-sizing: border-box; box-shadow: 0 0 20px rgba(0,0,0,0.05); }
+        header { text-align: center; border-bottom: 3px solid var(--navy); padding: 10px 0 20px; margin-bottom: 30px; }
+        h1 { margin: 0; font-size: 1.8rem; letter-spacing: -0.5px; }
+        .progress-container { width: 100%; height: 8px; background: #eee; border-radius: 4px; margin-bottom: 25px; position: sticky; top: 10px; }
+        #progress-fill { height: 100%; background: var(--emerald); width: 0%; transition: width 0.4s ease; border-radius: 4px; }
+        .question-box { margin-bottom: 30px; }
+        .question-text { font-size: 1.25rem; font-weight: 700; margin-bottom: 20px; color: #111; }
+        .option { display: block; width: 100%; padding: 18px; margin-bottom: 12px; border: 2px solid #e0e0e0; border-radius: 10px; background: var(--white); text-align: left; cursor: pointer; font-size: 1.05rem; transition: all 0.2s; color: var(--navy); font-weight: 500; }
+        .option:hover { border-color: var(--slate); background: #f9f9f9; }
+        .option:focus { outline: 3px solid var(--emerald); border-color: transparent; }
+        .option.selected { background: var(--navy) !important; color: var(--white) !important; border-color: var(--navy); }
+        .nav-controls { display: flex; justify-content: space-between; gap: 15px; margin-top: 40px; }
+        button.primary-btn { flex: 1; padding: 15px; border-radius: 8px; border: none; font-weight: 700; cursor: pointer; font-size: 1rem; text-transform: uppercase; transition: transform 0.1s; }
+        button.primary-btn:active { transform: scale(0.98); }
+        .btn-prev { background: var(--slate); color: white; }
+        .btn-next { background: var(--navy); color: white; }
+        .btn-submit { background: var(--emerald); color: white; }
+        #results-screen { display: none; padding-top: 20px; }
+        .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 30px; }
+        .stat-card { text-align: center; padding: 15px; background: #f0f4f8; border-radius: 8px; }
+        .stat-val { display: block; font-size: 1.5rem; font-weight: 900; }
+        .weakness-card { background: #fff8e1; border-left: 5px solid #ffc107; padding: 15px; margin-bottom: 15px; border-radius: 4px; }
+        .review-item { border-bottom: 1px solid #eee; padding: 15px 0; }
+        .feedback-text { font-size: 0.95rem; color: #444; margin-top: 8px; padding-left: 12px; border-left: 3px solid var(--emerald); }
+        @media (max-width: 600px) { h1 { font-size: 1.4rem; } .option { padding: 14px; font-size: 1rem; } }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div id="start-screen">
+        <header>
+            <h1>ANU Medical Exam Engine</h1>
+            <p style="color: var(--slate); font-weight: bold;">MID CVS MODULE | VERSION 2.0</p>
+        </header>
+        <div style="padding: 20px; background: #f8f9fa; border-radius: 12px; border: 1px solid #ddd;">
+            <h3 style="margin-top:0;">Assessment Parameters:</h3>
+            <ul>
+                <li>20 High-Fidelity CVS MCQs.</li>
+                <li>Logic-Gate remediation for incorrect items.</li>
+                <li>Targeted weakness analysis per source context.</li>
+                <li>Auto-save enabled (Local Session Persistence).</li>
+            </ul>
+            <button class="primary-btn btn-next" style="width:100%" onclick="engine.start()">Begin Examination</button>
+        </div>
+        <p style="font-size: 0.75rem; color: var(--slate); margin-top: 20px; text-align: center;">
+            Disclaimer: This engine is a self-assessment tool and does not provide clinical certification.
+        </p>
+    </div>
+
+    <div id="exam-screen" style="display:none;">
+        <div class="progress-container"><div id="progress-fill"></div></div>
+        <div id="quiz-content">
+            <div id="q-text" class="question-text"></div>
+            <div id="options-grid"></div>
+        </div>
+        <div class="nav-controls">
+            <button id="prev-btn" class="primary-btn btn-prev" onclick="engine.prev()">Previous</button>
+            <button id="next-btn" class="primary-btn btn-next" onclick="engine.next()">Next</button>
+            <button id="submit-btn" class="primary-btn btn-submit" style="display:none;" onclick="engine.submit()">Submit Exam</button>
+        </div>
+    </div>
+
+    <div id="results-screen">
+        <header><h1>Performance Analytics</h1></header>
+        <div class="stat-grid">
+            <div class="stat-card"><span class="stat-val" id="res-correct" style="color: var(--emerald);">0</span>Correct</div>
+            <div class="stat-card"><span class="stat-val" id="res-wrong" style="color: #d32f2f;">0</span>Incorrect</div>
+            <div class="stat-card"><span class="stat-val" id="res-un" style="color: var(--slate);">0</span>Unanswered</div>
+        </div>
+        <div id="weakness-analysis"></div>
+        <button id="retry-btn" class="primary-btn btn-next" style="width:100%; margin-bottom:10px;" onclick="engine.initRemediation()">Retry Incorrect Questions</button>
+        <button class="primary-btn btn-prev" style="width:100%" onclick="engine.reset()">Reset All Progress</button>
+        <div id="review-panel" style="margin-top:30px;"></div>
+    </div>
+</div>
+
+<script>
+const RAW_DATA = [
+    { 
+        q: "Which structure mainly forms the base of the heart?", 
+        options: ["Right atrium", "Right ventricle", "Left atrium", "Left ventricle"], 
+        correct: 2, tag: "Anatomy", ref: "Anatomy page 4",
+        feedback: "The base of the heart is formed mainly by the left atrium and a small part of the right atrium.",
+        altQ: "Regarding the heart's position, the base is situated opposite which structure?",
+        altOptions: ["The Apex", "The Diaphragm", "The Sternum", "The Right Border"], altCorrect: 0, altRef: "Anatomy page 4"
+    },
+    { 
+        q: "Which branch of the right coronary artery runs along the inferior border of the heart?", 
+        options: ["Left marginal artery", "Right marginal artery", "Circumflex artery", "Posterior interventricular artery"], 
+        correct: 1, tag: "Anatomy", ref: "Anatomy page 16",
+        feedback: "The right marginal artery is a branch of the RCA that follows the inferior border toward the apex.",
+        altQ: "The posterior interventricular artery typically arises from which vessel?",
+        altOptions: ["Left Circumflex", "Right Coronary Artery", "Left Anterior Descending", "Internal Thoracic"], altCorrect: 1, altRef: "Anatomy page 16"
+    },
+    { 
+        q: "What is the primary significance of the AV nodal delay?", 
+        options: ["Increase velocity of ventricular contraction", "Allow atria to contract before ventricles for better filling", "Prevent the SA node from excessive firing", "Decrease total duration of cardiac cycle"], 
+        correct: 1, tag: "Physiology", ref: "Physiology Lecture 1",
+        feedback: "The delay (approx 0.1s) allows for atrial emptying and ventricular filling, and protects ventricles from high atrial rates.",
+        altQ: "Which of the following would shorten the AV nodal delay?",
+        altOptions: ["Vagal stimulation", "Sympathetic stimulation", "Hypocalcemia", "Hyperkalemia"], altCorrect: 1, altRef: "Physiology Lecture 1"
+    },
+    { 
+        q: "What is a characteristic histological feature of Purkinje fibers?", 
+        options: ["Few peripheral myofibrils", "Smaller diameter than ventricular myocytes", "Lack of gap junctions", "Presence of typical intercalated discs"], 
+        correct: 0, tag: "Histology", ref: "Histology page 7",
+        feedback: "Purkinje cells have a large diameter and few peripheral myofibrils, specialized for rapid conduction.",
+        altQ: "In the HIS-Purkinje system, why is conduction velocity rapid?",
+        altOptions: ["Small diameter fibers", "High density of gap junctions", "Slow rate of depolarization", "Fewer mitochondria"], altCorrect: 1, altRef: "Physiology Lecture 1"
+    },
+    { 
+        q: "Salmon and walnuts are primary dietary sources for which fatty acid?", 
+        options: ["Omega 6 (Arachidonic acid)", "Omega 6 (Linoleic acid)", "Omega 3 (Linolenic acid)", "Cis-trans fatty acids"], 
+        correct: 2, tag: "Biochemistry", ref: "Biochemistry page 9",
+        feedback: "Omega 3 fatty acids like alpha-linolenic are abundant in fatty fish and certain nuts.",
+        altQ: "Concept depth reached; refer to primary Biochemistry lecture for further study.",
+        altOptions: ["N/A", "N/A", "N/A", "N/A"], altCorrect: 0, altRef: "N/A"
+    },
+    { 
+        q: "What is the main virulence factor in bacteria causing infection after prosthetic device implant (Catalase+/Coagulase-)?", 
+        options: ["Biofilm", "Toxin mediation", "Epithelial cell invasion", "Flagellar motility"], 
+        correct: 0, tag: "Microbiology", ref: "Microbiology page 8",
+        feedback: "Staph epidermidis (Coagulase negative) utilizes biofilms to adhere to prosthetic surfaces.",
+        altQ: "Biofilms protect bacteria primarily from which of the following?",
+        altOptions: ["Nutrient depletion", "Antibiotics and host immune response", "Initial attachment", "Gram staining"], altCorrect: 1, altRef: "Microbiology page 8"
+    },
+    { 
+        q: "What is the aortic pressure during the isovolumetric contraction phase?", 
+        options: ["Rises sharply above systolic", "Falls below atrial pressure", "Remains constant at normal diastolic pressure", "Fluctuates with venous return"], 
+        correct: 2, tag: "Physiology", ref: "Physiology page 41",
+        feedback: "During isovolumetric contraction, the aortic valve is closed; aortic pressure stays at diastolic level until the valve opens.",
+        altQ: "During the isovolumetric contraction phase, what is the status of the valves?",
+        altOptions: ["AV valves open, Semilunar closed", "All valves closed", "All valves open", "AV valves closed, Semilunar open"], altCorrect: 1, altRef: "Physiology page 41"
+    },
+    { 
+        q: "Which process is responsible for forming the smooth part of the left atrium?", 
+        options: ["Development of the primitive atrium", "Incorporation of the sinus venosus", "Absorption of the pulmonary vein", "Formation of the bulbus cordis"], 
+        correct: 2, tag: "Embryology", ref: "Anatomy page 25",
+        feedback: "The smooth part is formed by the absorption of the pulmonary veins, whereas the auricle comes from the primitive atrium.",
+        altQ: "The rough part of the right atrium is derived from which embryonic structure?",
+        altOptions: ["Sinus Venosus", "Primitive Atrium", "Bulbus Cordis", "Truncus Arteriosus"], altCorrect: 1, altRef: "Anatomy page 25"
+    },
+    { 
+        q: "In hot weather, how does the AV shunt react to facilitate heat loss?", 
+        options: ["Opens to bypass capillary beds", "Closes to force blood into the capillary bed", "Relaxes to decrease resistance", "Remains unchanged"], 
+        correct: 1, tag: "Histology", ref: "Histology page 22",
+        feedback: "Closure of AV shunts forces blood into superficial capillaries to enhance radiant heat loss.",
+        altQ: "AV shunts are most commonly found in which of the following areas?",
+        altOptions: ["Skin of fingertips", "Large elastic arteries", "Pulmonary circulation", "Brain parenchyma"], altCorrect: 0, altRef: "Histology page 22"
+    },
+    { 
+        q: "A CT scan reveals a mass compressing a nerve, resulting in hoarseness. Which nerve is affected?", 
+        options: ["Right recurrent laryngeal nerve", "Phrenic nerve", "Vagus nerve", "Left recurrent laryngeal nerve"], 
+        correct: 3, tag: "Clinical Anatomy", ref: "Anatomy page 37",
+        feedback: "The left recurrent laryngeal nerve hooks under the arch of the aorta; compression by hilar masses causes hoarseness.",
+        altQ: "Which nerve passes through the middle mediastinum along with the heart?",
+        altOptions: ["Vagus", "Phrenic", "Left Recurrent Laryngeal", "Sympathetic Chain"], altCorrect: 1, altRef: "Anatomy page 39"
+    },
+    { 
+        q: "Which apo-protein has specific receptors for LDL in the liver and extrahepatic tissues?", 
+        options: ["Apo B48", "Apo B100", "Apo protein A", "Apo Cll"], 
+        correct: 1, tag: "Biochemistry", ref: "Biochemistry page 33",
+        feedback: "Apo B100 is the ligand for LDL receptors; Apo B48 is unique to chylomicrons.",
+        altQ: "Where is Apo-B48 synthesized?",
+        altOptions: ["Liver", "Intestine", "Adipose tissue", "Gallbladder"], altCorrect: 1, altRef: "Biochemistry page 28"
+    },
+    { 
+        q: "Why does hypocalcemia prolong the QT interval?", 
+        options: ["Inactivates L-Type calcium channels", "Increases K+ conduction", "Increases Na+ influx", "Increases force of contraction"], 
+        correct: 0, tag: "Physiology", ref: "Physiology page 27",
+        feedback: "Lower extracellular Ca2+ affects channel states, specifically inactivating L-Type channels which prolongs the action potential plateau.",
+        altQ: "What does the QT interval represent on an ECG?",
+        altOptions: ["Atrial depolarization", "Duration of ventricular contraction", "Ventricle repolarization only", "AV nodal delay"], altCorrect: 1, altRef: "Physiology page 38"
+    },
+    { 
+        q: "A child is diagnosed with Barth syndrome. Which glycerophospholipid is primarily affected?", 
+        options: ["Cephalin", "Phosphatidyl serine", "Lipositol", "Cardiolipin"], 
+        correct: 3, tag: "Biochemistry", ref: "Biochemistry page 14",
+        feedback: "Barth syndrome involves defects in cardiolipin metabolism, critical for mitochondrial function.",
+        altQ: "Concept depth reached; refer to primary Biochemistry lecture for further study.",
+        altOptions: ["N/A", "N/A", "N/A", "N/A"], altCorrect: 0, altRef: "N/A"
+    },
+    { 
+        q: "What is the definitive diagnostic test for post-infection joint pain and heart murmur?", 
+        options: ["Blood culture", "ASO test", "Bacitracin test", "Coagulase test"], 
+        correct: 1, tag: "Microbiology", ref: "Microbiology page 15",
+        feedback: "Anti-streptolysin O (ASO) titers confirm a previous Strep pyogenes infection linked to rheumatic fever.",
+        altQ: "Concept depth reached; refer to primary Microbiology lecture for further study.",
+        altOptions: ["N/A", "N/A", "N/A", "N/A"], altCorrect: 0, altRef: "N/A"
+    },
+    { 
+        q: "Why does the cardiac muscle obey the 'all or none rule'?", 
+        options: ["It consists of isolated skeletal fibers", "Due to the functional syncytium created by gap junctions", "Because it lacks a refractory period", "Due to high-threshold ion channel states"], 
+        correct: 1, tag: "Physiology", ref: "Physiology Lecture 1",
+        feedback: "Gap junctions allow the entire muscle sheet to behave as a single unit (functional syncytium).",
+        altQ: "What prevents tetanic contraction in cardiac muscle?",
+        altOptions: ["Lack of calcium", "Absolute refractory period", "All or none rule", "Fast conduction velocity"], altCorrect: 1, altRef: "Physiology Lecture 1"
+    },
+    { 
+        q: "Which of the following structures passes through the middle mediastinum?", 
+        options: ["Descending aorta", "Vagi", "Phrenic nerves", "Esophagus"], 
+        correct: 2, tag: "Anatomy", ref: "Anatomy page 39",
+        feedback: "The middle mediastinum contains the heart and phrenic nerves.",
+        altQ: "Which structure is located in the posterior mediastinum?",
+        altOptions: ["Heart", "Ascending Aorta", "Esophagus", "Phrenic Nerves"], altCorrect: 2, altRef: "Anatomy page 39"
+    },
+    { 
+        q: "What is the primary mechanism of ventricular tachycardia?", 
+        options: ["Trigger activity", "Increased SAN rate", "AV conduction block", "Re-entry that premature arrive when fast pathway recover continue in circular movement"], 
+        correct: 3, tag: "Physiology", ref: "Physiology page 78",
+        feedback: "Re-entry occurs when a fast pathway recovers and an impulse continues in a circular movement.",
+        altQ: "An ECG shows depressed S-T segments. What is the most likely diagnosis?",
+        altOptions: ["Myocardial Injury", "Myocardial Ischemia", "Atrial Fibrillation", "Heart Block"], altCorrect: 1, altRef: "Physiology page 38"
+    },
+    { 
+        q: "What is the precursor required for Arachidonic acid to become essential?", 
+        options: ["Omega 3 Linolenic acid", "Omega 6 Linoleic acid", "Acetic acid", "Butyric acid"], 
+        correct: 1, tag: "Biochemistry", ref: "Biochemistry page 9",
+        feedback: "Arachidonic acid is synthesized from the essential linoleic acid (Omega-6).",
+        altQ: "Concept depth reached; refer to primary Biochemistry lecture for further study.",
+        altOptions: ["N/A", "N/A", "N/A", "N/A"], altCorrect: 0, altRef: "N/A"
+    },
+    { 
+        q: "What is the effect of hyperkalemia on the myocardial cell membrane?", 
+        options: ["Negativity of membrane potential decreases (less negative)", "Hyperpolarization (more negative)", "Increased potassium efflux", "Inactivation of Sodium channels"], 
+        correct: 0, tag: "Physiology", ref: "Physiology page 19",
+        feedback: "Hyperkalemia prevents K+ efflux, making the RMP less negative (closer to firing level), increasing excitability initially.",
+        altQ: "Hypokalemia causes which of the following membrane effects?",
+        altOptions: ["Depolarization", "Hyperpolarization", "Increased excitability", "Sodium channel inactivation"], altCorrect: 1, altRef: "Physiology page 19"
+    },
+    { 
+        q: "Which structure is formed between the Septum Primum and the Endocardial cushion?", 
+        options: ["Ostium Primum", "Ostium Secundum", "Foramen Ovale", "Septum Secundum"], 
+        correct: 0, tag: "Embryology", ref: "Embryology - Source Context",
+        feedback: "The Ostium Primum is the initial opening between the septum primum and the endocardial cushions.",
+        altQ: "Concept depth reached; refer to primary Embryology lecture for further study.",
+        altOptions: ["N/A", "N/A", "N/A", "N/A"], altCorrect: 0, altRef: "N/A"
+    }
+];
+
+const engine = {
+    state: {
+        mode: 'standard',
+        questions: [],
+        answers: {},
+        current: 0,
+        results: null
+    },
+
+    init() {
+        const saved = localStorage.getItem('anu_cvs_state');
+        if (saved) {
+            this.state = JSON.parse(saved);
+            if (this.state.results) this.renderResults();
+            else this.start(true);
+        }
+    },
+
+    save() {
+        localStorage.setItem('anu_cvs_state', JSON.stringify(this.state));
+    },
+
+    shuffle(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    },
+
+    start(resuming = false) {
+        if (!resuming) {
+            this.state.questions = this.shuffle([...RAW_DATA]).map((q, idx) => ({...q, originalIdx: idx}));
+            this.state.answers = {};
+            this.state.current = 0;
+            this.state.mode = 'standard';
+            this.state.results = null;
+        }
+        document.getElementById('start-screen').style.display = 'none';
+        document.getElementById('results-screen').style.display = 'none';
+        document.getElementById('exam-screen').style.display = 'block';
+        this.render();
+    },
+
+    render() {
+        const q = this.state.questions[this.state.current];
+        document.getElementById('q-text').innerText = `${this.state.current + 1}. ${q.q}`;
+        
+        const container = document.getElementById('options-grid');
+        container.innerHTML = '';
+        q.options.forEach((opt, i) => {
+            const btn = document.createElement('button');
+            btn.className = 'option';
+            if (this.state.answers[this.state.current] === i) btn.classList.add('selected');
+            btn.innerText = opt;
+            btn.onclick = () => {
+                this.state.answers[this.state.current] = i;
+                this.save();
+                this.render();
+            };
+            container.appendChild(btn);
+        });
+
+        const progress = ((this.state.current + 1) / this.state.questions.length) * 100;
+        document.getElementById('progress-fill').style.width = `${progress}%`;
+        
+        document.getElementById('prev-btn').style.visibility = this.state.current === 0 ? 'hidden' : 'visible';
+        const isLast = this.state.current === this.state.questions.length - 1;
+        document.getElementById('next-btn').style.display = isLast ? 'none' : 'block';
+        document.getElementById('submit-btn').style.display = isLast ? 'block' : 'none';
+    },
+
+    next() { if (this.state.current < this.state.questions.length - 1) { this.state.current++; this.render(); } },
+    prev() { if (this.state.current > 0) { this.state.current--; this.render(); } },
+
+    submit() {
+        const results = { correct: 0, wrong: 0, unanswered: 0, missedTags: [] };
+        this.state.questions.forEach((q, i) => {
+            const ans = this.state.answers[i];
+            if (ans === undefined) results.unanswered++;
+            else if (ans === q.correct) results.correct++;
+            else {
+                results.wrong++;
+                if (!results.missedTags.includes(q.tag)) results.missedTags.push(q.tag);
+            }
+        });
+        this.state.results = results;
+        this.save();
+        this.renderResults();
+    },
+
+    renderResults() {
+        document.getElementById('exam-screen').style.display = 'none';
+        document.getElementById('results-screen').style.display = 'block';
+        const res = this.state.results;
+        document.getElementById('res-correct').innerText = res.correct;
+        document.getElementById('res-wrong').innerText = res.wrong;
+        document.getElementById('res-un').innerText = res.unanswered;
+
+        const analysis = document.getElementById('weakness-analysis');
+        analysis.innerHTML = '<h3>Weakness Analysis:</h3>';
+        if (res.missedTags.length === 0 && res.unanswered === 0) {
+            analysis.innerHTML += '<p style="color: var(--emerald);">Optimal performance detected across all module concepts.</p>';
+        } else {
+            res.missedTags.forEach(tag => {
+                const card = document.createElement('div');
+                card.className = 'weakness-card';
+                card.innerHTML = `<strong>Concept: ${tag}</strong><br>Conceptual gap identified. Refer to ANU ${tag} sources for mechanism review.`;
+                analysis.appendChild(card);
+            });
+        }
+
+        const review = document.getElementById('review-panel');
+        review.innerHTML = '<h3>Detailed Review:</h3>';
+        this.state.questions.forEach((q, i) => {
+            const ans = this.state.answers[i];
+            const item = document.createElement('div');
+            item.className = 'review-item';
+            const isCorrect = ans === q.correct;
+            item.innerHTML = `
+                <strong>Q${i+1}: ${isCorrect ? '✅' : '❌'}</strong> ${q.q}
+                <div class="feedback-text">
+                    <strong>Correct:</strong> ${q.options[q.correct]}<br>
+                    <strong>Your Choice:</strong> ${ans !== undefined ? q.options[ans] : 'Unanswered'}<br>
+                    <strong>Source:</strong> ${q.ref}<br>
+                    <em>Note: ${q.feedback}</em>
+                </div>
+            `;
+            review.appendChild(item);
+        });
+
+        document.getElementById('retry-btn').style.display = (res.wrong > 0 || res.unanswered > 0) ? 'block' : 'none';
+    },
+
+    initRemediation() {
+        const remediationQs = [];
+        this.state.questions.forEach((q, i) => {
+            if (this.state.answers[i] !== q.correct) {
+                remediationQs.push({
+                    ...q,
+                    q: q.altQ,
+                    options: q.altOptions,
+                    correct: q.altCorrect,
+                    ref: q.altRef,
+                    isRemediation: true
+                });
+            }
+        });
+        this.state.questions = remediationQs;
+        this.state.answers = {};
+        this.state.current = 0;
+        this.state.mode = 'remediation';
+        this.state.results = null;
+        this.save();
+        this.start(true);
+    },
+
+    reset() {
+        localStorage.removeItem('anu_cvs_state');
+        location.reload();
+    }
+};
+
+window.onload = () => engine.init();
+</script>
+</body>
+</html>
